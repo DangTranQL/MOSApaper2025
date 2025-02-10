@@ -147,12 +147,14 @@ def ssfinder(beta_x_val,beta_y_val,n_val):
         if xss > 0.04 and yss > 0.04 and np.linalg.norm(fvec) < 1e-10 and intflag == 1 and instablility==False:
             found_valid = True
             return xss, yss 
-            # Note: 
-            # xss and yss are both of type numpy.float64
-            # Eg: 
-            # ssfinder(2,2,2) == (1.0000000108275326, 1.0000000108275326)
-            # type(ssfinder(2,2,2)) == tuple
-            # type(ssfinder(2,2,2)[0]) == type(ssfinder(2,2,2)[1]) == numpy.float64
+        """
+            Note: 
+            xss and yss are both of type numpy.float64
+            Eg: 
+            ssfinder(2,2,2) == (1.0000000108275326, 1.0000000108275326)
+            type(ssfinder(2,2,2)) == tuple
+            type(ssfinder(2,2,2)[0]) == type(ssfinder(2,2,2)[1]) == numpy.float64
+        """
 
     # If not valid, set to nan
     if not found_valid:
@@ -189,19 +191,21 @@ def senpair(xss_list, yss_list, n_list, beta_x_list, beta_y_list, choice1, choic
 
     # Return values of the two sensitivities of interest
     return sensitivities[labels[choice1]], sensitivities[labels[choice2]]
-    # Note: 
-    # Both outputs are of type numpy.ndarray
-    # Eg:
-    # xss_list = np.array((1.0000000108275326, 2.8793852415718164))
-    # yss_list = np.array((2.8793852415718164, 1.0000000108275326))
-    # n_list = np.array([2,3])
-    # beta_x_list = np.array([2,3])
-    # beta_y_list = np.array([2,3])
-    # choice1 = 0
-    # choice2 = 1
-    # ans = senpair(xss_list, yss_list, n_list, beta_x_list, beta_y_list, choice1, choice2) == (array([4.61785728e+07, 1.01476269e+00]), array([ 0.53265904, 24.00004561]))
-    # type(ans) = tuple
-    # type(ans[0]) == type(ans[1]) == numpy.ndarray
+"""
+    Note: 
+    Both outputs are of type numpy.ndarray
+    Eg:
+    xss_list = np.array((1.0000000108275326, 2.8793852415718164))
+    yss_list = np.array((2.8793852415718164, 1.0000000108275326))
+    n_list = np.array([2,3])
+    beta_x_list = np.array([2,3])
+    beta_y_list = np.array([2,3])
+    choice1 = 0
+    choice2 = 1
+    ans = senpair(xss_list, yss_list, n_list, beta_x_list, beta_y_list, choice1, choice2) == (array([4.61785728e+07, 1.01476269e+00]), array([ 0.53265904, 24.00004561]))
+    type(ans) = tuple
+    type(ans[0]) == type(ans[1]) == numpy.ndarray
+"""
     
 # DEFINE OBJECTIVE FUNCTION TO ANNEAL
 def fobj(solution):

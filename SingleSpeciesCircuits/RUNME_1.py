@@ -59,7 +59,7 @@ def Equs(P, t, params):
 t = 0.0
 
 # Define number of steady states expected
-numss = int(input("Do you expect 1 or 2 stable steady states in your search space? Please enter either 1 or 2:"))
+numss = int(input("Do you expect 1 or 2 stable steady states in your search space? Please enter either 1 or 2: "))
 
 
 # -------------- PART 0c: DEFINE SENSITIVITY FUNCTIONS --------------
@@ -76,7 +76,7 @@ S_n_xss_analytic = config.S_n_xss_analytic
 # Print prompt
 print("""
 Only two sensitivity functions are present:
-0. |S_betax_xss|
+0. |S_alpha_xss|
 1. |S_n_xss|
 MOSA will anneal this pair.
 """)
@@ -120,32 +120,28 @@ def euclidean_distance(x1, x2):
 
 # DEFINE FUNCTION THAT SOLVES FOR STEADY STATES XSS AND YSS GIVEN SOME INITIAL GUESS
 def ssfinder(alpha_val,n_val):
-    
-#    # Define corresponding number of empty arrays
-#    for i in range(1, numss + 1):
-#        globals()[f"xss{i}"] = np.array([]) <-- ask Dan how to get this working
         
     # -------------------------------------------------------------------------------------------------------------------
     # If we have one steady state                                                                                       #|
     if numss == 1:                                                                                                      #|
-    
-        # Create an empty numpy array
-        xss1 = np.array([])
+                                                                                                                        #|
+        # Create an empty numpy array                                                                                   #|
+        xss1 = np.array([])                                                                                             #|
                                                                                                                         #|
         # Define initial guesses                                                                                        #|
         InitGuesses = config.generate_initial_guesses(alpha_val, n_val)                                                 #|
                                                                                                                         #|
         # Define array of parameters                                                                                    #|
         params = np.array([alpha_val, n_val])                                                                           #|
-                                                                                                                        #|
+        is_valid = False                                                                                                                #|
         # For each until you get one that gives a solution or you exhaust the list                                      #|
         for InitGuess in InitGuesses:                                                                                   #|
                                                                                                                         #|
             # Get solution details                                                                                      #|
-            output, infodict, intflag, _ = fsolve(Equs, InitGuess, args=(t, params), xtol=1e-12, full_output=True)      # \
-            xss = output                                                                                                #  \ If we inputted 1 
-            fvec = infodict['fvec']                                                                                     #  / for numss prompt
-                                                                                                                        # /
+            output, infodict, intflag, _ = fsolve(Equs, InitGuess, args=(t, params), xtol=1e-12, full_output=True)      #|
+            xss = output                                                                                                #| If we inputted 1 
+            fvec = infodict['fvec']                                                                                     #| for numss prompt
+                                                                                                                        #|
             # Check if stable attractor point                                                                           #|
             delta = 1e-8                                                                                                #|
             dEqudx = (Equs(xss+delta, t, params)-Equs(xss, t, params))/delta                                            #|
@@ -156,22 +152,25 @@ def ssfinder(alpha_val,n_val):
             # Check conditions for valid steady states                                                                  #|
             # i.e. xss is nonzero, residuals small, and successful convergence                                          #|
             if xss > 0.04 and np.linalg.norm(fvec) < 1e-10 and intflag == 1 and instablility==False:                    #|
-            # If valid solution, store it                                                                               #|
-                xss1 = np.append(xss1,xss)                                                                              #|
+                # If valid solution, store it                                                                               #|
+                xss1 = np.append(xss1,xss)                                                                             #|
                 # Stop as we now have the one solution we need                                                          #|
+                is_valid = True
                 break                                                                                                   #|
-                                                                                                                        #|
-        # If not valid, set to nan                                                                                      #|
-        xss1 = np.append(xss1,float('nan'))                                                                             #|
+        if is_valid == False:                                                                                                                #|
+            # If not valid, set to nan                                                                                      #|
+            xss1 = np.append(xss1,float('nan'))                                                                             #|
+#            print(xss1)
+        return xss1
     # -------------------------------------------------------------------------------------------------------------------
         
     # -------------------------------------------------------------------------------------------------------------------
     # If we have two steady states                                                                                      #|
     if numss == 2:                                                                                                      #|
-    
-        # Create an empty numpy array
-        xss1 = np.array([])
-        xss2 = np.array([])
+                                                                                                                        #|
+        # Create an empty numpy array                                                                                   #|
+        xss1 = np.array([])                                                                                             #|
+        xss2 = np.array([])                                                                                             #|
                                                                                                                         #|
         # Define initial guesses                                                                                        #|
         InitGuesses = config.generate_initial_guesses(alpha_val, n_val)                                                 #|
@@ -190,10 +189,10 @@ def ssfinder(alpha_val,n_val):
             xss = output                                                                                                #|
             fvec = infodict['fvec']                                                                                     #|
                                                                                                                         #|
-            # Check if stable attractor point                                                                           # \
-            delta = 1e-8                                                                                                #  \ If we inputted 2
-            dEqudx = (Equs([xss+delta,yss], t, params)-Equs([xss,yss], t, params))/delta                                #  / for numss prompt
-            jac = np.array([[dEqudx]])                                                                                  # /
+            # Check if stable attractor point                                                                           #|
+            delta = 1e-8                                                                                                #| If we inputted 2
+            dEqudx = (Equs([xss+delta,yss], t, params)-Equs([xss,yss], t, params))/delta                                #| for numss prompt
+            jac = np.array([[dEqudx]])                                                                                  #|
             eig = jac                                                                                                   #|
             instablility = np.real(eig) >= 0                                                                            #|
                                                                                                                         #|
@@ -214,24 +213,18 @@ def ssfinder(alpha_val,n_val):
         if len(solutions) == 2:                                                                                         #|
             # Two distinct solutions found, sort and store them                                                         #|
             solutions.sort()                                                                                            #|
-            xss1 = np.append(xss1,solutions[0])
-            xss2 = np.append(xss2,solutions[1])
+            xss1 = np.append(xss1,solutions[0])                                                                         #|
+            xss2 = np.append(xss2,solutions[1])                                                                         #|
         elif len(solutions) == 1:                                                                                       #|
             # Only one distinct solution found, store it twice                                                          #|
-            xss1 = np.append(xss1,solutions[0])
+            xss1 = np.append(xss1,solutions[0])                                                                         #|
             xss2 = np.append(xss2,solutions[0])                                                                         #|
         else:                                                                                                           #|
             # No valid solutions found, store NaN                                                                       #|
-            xss1 = np.append(xss1,float('nan'))
-            xss2 = np.append(xss2,float('nan'))
+            xss1 = np.append(xss1,float('nan'))                                                                         #|
+            xss2 = np.append(xss2,float('nan'))                                                                         #|
+        return xss1, xss2
     # -------------------------------------------------------------------------------------------------------------------
-    
-    # -------------------------------------------------------------------------------------------------------------------
-    # Add cases of numss = 3,4,5,... if needed                                                                          #|
-    # -------------------------------------------------------------------------------------------------------------------
-
-#    # Return all the created lists
-#    return [globals()[f"xss{i}"] for i in range(1, numss + 1)]
     
 
 # DEFINE FUNCTION THAT RETURNS PAIR OF SENSITIVITIES
@@ -239,11 +232,11 @@ def senpair(xss_list, alpha_list, n_list, choice1, choice2):
     
     # Evaluate sensitivities
     S_alpha_xss = S_alpha_xss_analytic(xss_list, alpha_list, n_list)
-    S_n_xss     =     S_n_xss_analytic(xss_list, alpha_list, n_list)
+    S_n_xss     = S_n_xss_analytic(xss_list, alpha_list, n_list)
 
     # Sensitivity dictionary
     sensitivities = {
-        "S_alpha_xss": S_betax_xss,
+        "S_alpha_xss": S_alpha_xss,
         "S_n_xss": S_n_xss}
 
     # Map indices to keys
@@ -278,7 +271,7 @@ def fobj(solution):
 
 # -------------- PART 1: GAUGING MOSA PARAMETERS --------------
 
-# Sample beta_x values
+# Sample alpha values
 alpha_min = float(input("Please enter minimum alpha value: "))
 alpha_max = float(input("Please enter maximum alpha value: "))
 alpha_sampsize = int(input("Please enter the number of alpha samples: "))
@@ -372,34 +365,50 @@ for run in range(runs):
     seed(0)
 	
 	# Initialisation of MOSA
-    opt = mosa.Anneal()
-    opt.archive_size = 100
-    opt.maximum_archive_rejections = opt.archive_size
-    opt.population = {"alpha": (alpha_min, alpha_max), "n": (n_min, n_max)}
+#    opt = mosa.Anneal()
+#    opt.archive_size = 5000
+#    opt.maximum_archive_rejections = opt.archive_size
+#    opt.population = {"alpha": (alpha_min, alpha_max), "n": (n_min, n_max)}
+    opt=mosa.Anneal()
+    opt.archive_size=5000
+    opt.maximum_archive_rejections=5000
+    opt.population={"alpha":(0.01,50),"n":(0.01,10)}
 	
 	# Hot run options
-    opt.initial_temperature = temp_hot
-    opt.number_of_iterations = 100
-    opt.temperature_decrease_factor = 0.9
-    no_of_steps_from_hot_to_cold = int(np.ceil((temp_hot-temp_cold)/opt.temperature_decrease_factor))
-    opt.number_of_temperatures = no_of_steps_from_hot_to_cold
-    opt.number_of_solution_elements = {"alpha":1, "n":1}
-    step_scaling = 1/opt.number_of_iterations
-    opt.mc_step_size= {"alpha": (beta_x_max-beta_x_min)*step_scaling , "n": (n_max-n_min)*step_scaling}
-	
+#    opt.initial_temperature = temp_hot
+#    opt.number_of_iterations = 100
+#    opt.temperature_decrease_factor = 0.9
+#    no_of_steps_from_hot_to_cold = int(np.ceil((temp_hot-temp_cold)/opt.temperature_decrease_factor))
+#    opt.number_of_temperatures = no_of_steps_from_hot_to_cold
+#    opt.number_of_solution_elements = {"alpha":1, "n":1}
+#    step_scaling = 1/opt.number_of_iterations
+#    opt.mc_step_size= {"alpha": (alpha_max-alpha_min)*step_scaling , "n": (n_max-n_min)*step_scaling}
+    opt.initial_temperature=500
+    opt.number_of_iterations=200
+    opt.number_of_temperatures=200
+    opt.temperature_decrease_factor=0.95
+    opt.number_of_solution_elements={"alpha":1,"n":1}
+    opt.mc_step_size={"alpha":1,"n":1}
+    	
     # Hot run
     start_time = time.time()
     opt.evolve(fobj)
     print(f"Hot run time: {time.time() - start_time} seconds")
 	
     # Cold run options
-    opt.initial_temperature = temp_cold
-    opt.number_of_iterations = 100
-    opt.number_of_temperatures = 100
-    opt.temperature_decrease_factor = 0.9
-    opt.number_of_solution_elements = {"alpha":1,"n":1}
-    step_scaling = 1/opt.number_of_iterations
-    opt.mc_step_size= {"alpha": (beta_x_max-beta_x_min)*step_scaling , "n": (n_max-n_min)*step_scaling}
+#    opt.initial_temperature = temp_cold
+#    opt.number_of_iterations = 100
+#    opt.number_of_temperatures = 100
+#    opt.temperature_decrease_factor = 0.9
+#    opt.number_of_solution_elements = {"alpha":1,"n":1}
+#    step_scaling = 1/opt.number_of_iterations
+#    opt.mc_step_size= {"alpha": (alpha_max-alpha_min)*step_scaling , "n": (n_max-n_min)*step_scaling}
+    opt.initial_temperature=1
+    opt.number_of_iterations=200
+    opt.number_of_temperatures=200
+    opt.temperature_decrease_factor=0.95
+    opt.number_of_solution_elements={"alpha":1,"n":1}
+    opt.mc_step_size={"alpha":0.1,"n":0.1}
 	
     # Cold run
     start_time = time.time()
@@ -589,50 +598,23 @@ points = np.array(list(zip(pareto_alpha_combined, pareto_n_combined)))
 min_vals = np.min(points, axis=0)
 max_vals = np.max(points, axis=0)
 
+print(min_vals)
+print(max_vals)
+
 # 4b: COMPARE OLD VS NEW PARAM SPACE AREA
 
 # Volume of the bounding rectangular prism
 new_param_area = (max_vals[0] - min_vals[0]) * (max_vals[1] - min_vals[1])
+print(new_param_area)
 # Volume of original parameter space
 old_param_area = (alpha_max-alpha_min) * (n_max-n_min)
+print(old_param_area)
 # Volume reduction as percentage
 percentage = (new_param_area / old_param_area) * 100
 # Print percentage
 print(f"New parameter space is {percentage:.2f}% of original parameter space volume.")
 
-# 4c: PLOT OLD VS NEW PARAM SPACE
-
-# Define the bounding box for the new parameter space
-new_param_box = pv.Rectangle([[min_vals[0], min_vals[1]], [max_vals[0], min_vals[1]],
-                              [max_vals[0], max_vals[1]], [min_vals[0], max_vals[1]]])
-
-# Define the bounding box for the original parameter space
-old_param_box = pv.Rectangle([[alpha_min, n_min], [alpha_max, n_min],
-                              [alpha_max, n_max], [alpha_min, n_max]])
-
-# Create a plotter
-plotter = pv.Plotter()
-
-# Show each param space with different colors
-plotter.add_mesh(new_param_box, color='blue', opacity=0.3, label='New Parameter Space')
-plotter.add_mesh(old_param_box, color='orange', opacity=0.3, label='Original Parameter Space')
-
-# Add legend
-plotter.add_legend()
-
-# Show bounding box and axes labels
-plotter.show_bounds(
-    grid="front",
-    location="outer",
-    ticks="both",
-    xlabel="alpha",
-    ylabel="n")
-
-# Save plot
-output_file = f"paramspaces_sensfuncs_{choice1}_and_{choice2}.png"
-plotter.screenshot(output_file)
-
-# 4d: SAMPLE WITHIN NEW PARAM SPACE WITH SAME DENSITY AS ORIGINAL GRID SEARCH
+# 4c: SAMPLE WITHIN NEW PARAM SPACE WITH SAME DENSITY AS ORIGINAL GRID SEARCH
 
 # Create a grid of evenly spaced points from old parameter space
 a_density = 5000
@@ -662,6 +644,56 @@ inside_rect_points = grid_points[inside_rect_mask]
 
 # Save data
 np.save("inside_points.npy", inside_rect_points)
+
+
+# 4d: Plot bounding box
+
+# Create a figure and axis
+fig, ax = plt.subplots(figsize=(6, 6))
+
+# Scatter plot of sampled points
+ax.scatter(inside_rect_points[:, 0], inside_rect_points[:, 1], 
+           s=1, color="blue", alpha=0.3, label="Sampled Points")
+
+# Plot the bounding rectangle
+bounding_box = np.array([
+    [min_x, min_y],  # Bottom-left
+    [max_x, min_y],  # Bottom-right
+    [max_x, max_y],  # Top-right
+    [min_x, max_y],  # Top-left
+    [min_x, min_y]   # Close the rectangle
+])
+ax.plot(bounding_box[:, 0], bounding_box[:, 1], color="red", linewidth=2, label="Bounding Rectangle")
+
+# Set labels and title
+ax.set_xlabel("Alpha")
+ax.set_ylabel("N")
+ax.set_title("Bounding Rectangle and Sampled Points")
+ax.set_xlim([alpha_min,alpha_max])
+ax.set_ylim([n_min,n_max])
+
+# Add legend
+ax.legend()
+
+# Show plot
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # -------------- PART 5: RECORD STATS --------------
@@ -696,7 +728,7 @@ with open(output_file, "w") as file:
     file.write(f"Bounds of new parameter space after {runs} runs:\n")
     file.write("-------------------------------------------------\n")
     file.write(f"alpha_min: {min_vals[0]}, alpha_max: {max_vals[0]}\n")
-    file.write(f"n_min: {min_vals[2]}, n_max: {max_vals[2]}\n")
+    file.write(f"n_min: {min_vals[1]}, n_max: {max_vals[1]}\n")
     file.write(f"New parameter space is {percentage:.2f}% of original parameter space volume.")
     
     # Record reduced parameter space stats

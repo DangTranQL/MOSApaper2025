@@ -23,7 +23,7 @@ def S_n_xss_analytic(xss, alpha, n):
 
 # Initial guesses
 
-def generate_initial_guesses(beta_x_val, beta_y_val):
+def generate_initial_guesses(alpha_val, n_val):
     return [
         np.array([0.5]),
         np.array([1]),

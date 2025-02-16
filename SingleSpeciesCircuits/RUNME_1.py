@@ -1,6 +1,9 @@
 # -------------- PART 0: PYTHON PRELIM --------------
 
+# Additional notes: 
+# mosa.py evolve() function has been edited to return final stopping temperature
 
+# Import packages
 import importlib
 import os
 import time
@@ -10,12 +13,14 @@ import mosa
 import matplotlib.pyplot as plt
 import pyvista as pv
 import gc
-
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.optimize import fsolve
 from math import inf
 from numpy.random import seed
 from scipy.spatial import ConvexHull, Delaunay
+
+# Name for text file to records stats
+output_file = f"Stats.txt"
 
 
 # -------------- PART 0a: CHOOSE CIRCUIT AND SET UP FOLDER --------------
@@ -27,7 +32,7 @@ circuit = input("Please enter name of the circuit: ")
 # Import circuit config file
 config = importlib.import_module(circuit)
 
-# Define the subfolder name
+# Define subfolder name to work in
 folder_name = f"MOSA_{circuit}"
 
 # Create folder if not yet exist
@@ -39,7 +44,6 @@ os.chdir(folder_name)
 
 # Prompt new folder name
 print(f"Current working directory: {os.getcwd()}")
-
 
 # -------------- PART 0b: DEFINE DYNAMICAL SYSTEM --------------
 
@@ -59,13 +63,15 @@ def Equs(P, t, params):
 t = 0.0
 
 # Define number of steady states expected
-numss = int(input("Do you expect 1 or 2 stable steady states in your search space? Please enter either 1 or 2: "))
+numss = int(input("""
+Do you expect 1 or 2 stable steady states in your search space? 
+Please enter either 1 or 2: """))
 
 
 # -------------- PART 0c: DEFINE SENSITIVITY FUNCTIONS --------------
 
 
-# Define analytical sensitivity expressions
+# Load analytical sensitivity expressions
 S_alpha_xss_analytic = config.S_alpha_xss_analytic
 S_n_xss_analytic = config.S_n_xss_analytic
 
@@ -98,7 +104,7 @@ label2 = sensitivity_labels[choice2]
 # -------------- PART 0e: CHANGING DIRECTORIES --------------
 
 
-# Define the subfolder name
+# Define subfolder name to work in
 subfolder_name = f"MOSA_sensfuncs_{choice1}_and_{choice2}"
 
 # Create folder if not yet exist
@@ -111,6 +117,15 @@ os.chdir(subfolder_name)
 # Prompt new folder name
 print(f"Current working directory: {os.getcwd()}")
 
+# Record info about system
+with open(output_file, "a") as file:
+    file.write("--------------------------------------------\n")
+    file.write("System information:\n")
+    file.write("--------------------------------------------\n")
+    file.write(f"Circuit choice: {circuit}\n")
+    file.write(f"Number of steady states expected: {numss}\n")
+    file.write(f"Sensitivity function 1: {label1}\n")
+    file.write(f"Sensitivity function 2: {label2}\n")
 
 # -------------- PART 0f: DEFINE FUNCTIONS --------------
 
@@ -118,7 +133,7 @@ print(f"Current working directory: {os.getcwd()}")
 def euclidean_distance(x1, x2):
     return abs(x1 - x2)
 
-# DEFINE FUNCTION THAT SOLVES FOR STEADY STATES XSS AND YSS GIVEN SOME INITIAL GUESS
+# DEFINE FUNCTION THAT SOLVES FOR STEADY STATES XSS GIVEN AN INITIAL GUESS
 def ssfinder(alpha_val,n_val):
         
     # -------------------------------------------------------------------------------------------------------------------
@@ -128,13 +143,16 @@ def ssfinder(alpha_val,n_val):
         # Create an empty numpy array                                                                                   #|
         xss1 = np.array([])                                                                                             #|
                                                                                                                         #|
-        # Define initial guesses                                                                                        #|
+        # Load initial guesses which is a function of a choice of alpha and n values                                    #|
         InitGuesses = config.generate_initial_guesses(alpha_val, n_val)                                                 #|
                                                                                                                         #|
         # Define array of parameters                                                                                    #|
         params = np.array([alpha_val, n_val])                                                                           #|
-        is_valid = False                                                                                                                #|
-        # For each until you get one that gives a solution or you exhaust the list                                      #|
+                                                                                                                        #|
+        # Initially we don't have a valid solution                                                                      #|
+        is_valid = False                                                                                                #|
+                                                                                                                        #|
+        # For each initial guess in the list of initial guesses we loaded                                               #|
         for InitGuess in InitGuesses:                                                                                   #|
                                                                                                                         #|
             # Get solution details                                                                                      #|
@@ -149,19 +167,20 @@ def ssfinder(alpha_val,n_val):
             eig = jac                                                                                                   #|
             instablility = np.real(eig) >= 0                                                                            #|
                                                                                                                         #|
-            # Check conditions for valid steady states                                                                  #|
-            # i.e. xss is nonzero, residuals small, and successful convergence                                          #|
+            # Check if it is sufficiently large, has small residual, and successfully converges                         #|
             if xss > 0.04 and np.linalg.norm(fvec) < 1e-10 and intflag == 1 and instablility==False:                    #|
-                # If valid solution, store it                                                                               #|
-                xss1 = np.append(xss1,xss)                                                                             #|
-                # Stop as we now have the one solution we need                                                          #|
-                is_valid = True
+                # If so, it is a valid solution and we store it then end the loop                                       #|
+                xss1 = np.append(xss1,xss)                                                                              #|
+                is_valid = True                                                                                         #|
                 break                                                                                                   #|
-        if is_valid == False:                                                                                                                #|
-            # If not valid, set to nan                                                                                      #|
-            xss1 = np.append(xss1,float('nan'))                                                                             #|
-#            print(xss1)
-        return xss1
+                                                                                                                        #|
+        # If no valid solutions are found after trying all initial guesses                                              #|
+        if is_valid == False:                                                                                           #|                                                                         #|
+            # Store a nan                                                                                               #|
+            xss1 = np.append(xss1,float('nan'))                                                                         #|
+                                                                                                                        #|
+        # Return list where each entry is the xss value corresponding to a unique pair of (alpha,n)                     #|                                                                                                   
+        return xss1                                                                                                     #|
     # -------------------------------------------------------------------------------------------------------------------
         
     # -------------------------------------------------------------------------------------------------------------------
@@ -172,13 +191,16 @@ def ssfinder(alpha_val,n_val):
         xss1 = np.array([])                                                                                             #|
         xss2 = np.array([])                                                                                             #|
                                                                                                                         #|
-        # Define initial guesses                                                                                        #|
+        # Load initial guesses which is a function of a choice of alpha and n values                                    #|
         InitGuesses = config.generate_initial_guesses(alpha_val, n_val)                                                 #|
                                                                                                                         #|
         # Define array of parameters                                                                                    #|
         params = np.array([alpha_val, n_val])                                                                           #|
                                                                                                                         #|
-        # To store valid solutions                                                                                      #|
+        # Initially we don't have a valid solution                                                                      #|
+        is_valid = False                                                                                                #|
+                                                                                                                        #|
+        # Make a list to temporarily store the multiple valid solutions for each initial guess                          #|
         solutions = []                                                                                                  #|
                                                                                                                         #|
         # For each until you get one that gives a solution or you exhaust the list                                      #|
@@ -196,37 +218,39 @@ def ssfinder(alpha_val,n_val):
             eig = jac                                                                                                   #|
             instablility = np.real(eig) >= 0                                                                            #|
                                                                                                                         #|
-            # Check conditions for valid steady states                                                                  #|
-            # i.e. xss is nonzero, residuals small, and successful convergence                                          #|
+            # Check if it is sufficiently large, has small residual, and successfully converges                         #|
             if xss > 0.04 and np.linalg.norm(fvec) < 1e-10 and intflag == 1 and instablility==False:                    #|
                 # If this is the first valid solution, just store it                                                    #|
                 if len(solutions) == 0:                                                                                 #|
                     solutions.append(xss)                                                                               #|
+                # If this is not the first valid solution found                                                         #|
                 else:                                                                                                   #|
-                    # Compare the new solution with the previous one                                                    #|
+                    # Compare the new solution with the previous ones to see if it is far enough                        #|
                     if all(euclidean_distance(existing_x, xss) > DISTANCE_THRESHOLD for existing_x in solutions):       #|
+                        # If it is far enough, store it and break out of the loop                                       #|
                         solutions.append(xss)                                                                           #|
-                        # Stop as we now have two distinct solutions                                                    #|
                         break                                                                                           #|
                                                                                                                         #|
-        # After looping through the guesses, store the solutions or NaN if no distinct solutions were found             #|
+        # After looping through all the initial guesses                                                                 #|
+        # If two distinct solutions found                                                                               #|
         if len(solutions) == 2:                                                                                         #|
-            # Two distinct solutions found, sort and store them                                                         #|
+            # Sort and store them                                                                                       #|
             solutions.sort()                                                                                            #|
             xss1 = np.append(xss1,solutions[0])                                                                         #|
             xss2 = np.append(xss2,solutions[1])                                                                         #|
+        # If only one distinct solution found                                                                           #|
         elif len(solutions) == 1:                                                                                       #|
-            # Only one distinct solution found, store it twice                                                          #|
+            # Store it twice                                                                                            #|
             xss1 = np.append(xss1,solutions[0])                                                                         #|
             xss2 = np.append(xss2,solutions[0])                                                                         #|
+        # If no valid solutions found                                                                                   #|
         else:                                                                                                           #|
-            # No valid solutions found, store NaN                                                                       #|
+            # Store NaN                                                                                                 #|
             xss1 = np.append(xss1,float('nan'))                                                                         #|
             xss2 = np.append(xss2,float('nan'))                                                                         #|
-        return xss1, xss2
+        return xss1, xss2                                                                                               #|
     # -------------------------------------------------------------------------------------------------------------------
     
-
 # DEFINE FUNCTION THAT RETURNS PAIR OF SENSITIVITIES
 def senpair(xss_list, alpha_list, n_list, choice1, choice2):
     
@@ -271,17 +295,32 @@ def fobj(solution):
 
 # -------------- PART 1: GAUGING MOSA PARAMETERS --------------
 
+
+# Record info
+with open(output_file, "a") as file:
+    file.write("--------------------------------------------\n")
+    file.write("System probing to estimate MOSA run parameters:\n")
+    file.write("--------------------------------------------\n")
+
 # Sample alpha values
 alpha_min = float(input("Please enter minimum alpha value: "))
 alpha_max = float(input("Please enter maximum alpha value: "))
 alpha_sampsize = int(input("Please enter the number of alpha samples: "))
 alpha_samps = np.linspace(alpha_min, alpha_max, alpha_sampsize)
 
+# Record info
+with open(output_file, "a") as file:
+    file.write(f"alpha values from {alpha_min} to {alpha_max} with {alpha_sampsize} linspaced samples\n")
+
 # Sample n values
 n_min = float(input("Please enter minimum n value: "))
 n_max = float(input("Please enter maximum n value: "))
 n_sampsize = int(input("Please enter the number of n samples: "))
 n_samps = np.linspace(n_min, n_max, n_sampsize)
+
+# Record info
+with open(output_file, "a") as file:
+    file.write(f"n values from {n_min} to {n_max} with {n_sampsize} linspaced samples\n")
 
 # Create empty arrays to store corresponding values of xss and yss
 xss_samps = np.array([])
@@ -292,57 +331,85 @@ sens2_samps = np.array([])
 for i in alpha_samps:
     for j in n_samps:
         
-        # Get steady states and store
+        # Get steady state value and store
         xss = ssfinder(i,j)
         xss_samps = np.append(xss_samps,xss)
-        # Get sensitivities and store
+        # Get corresponding sensitivities and store
         sens1, sens2 = senpair(xss, i, j, choice1, choice2)
         sens1_samps = np.append(sens1_samps,sens1)
         sens2_samps = np.append(sens2_samps,sens2)
 
 # Get min and max of each sensitivity and print
 sens1_samps_min = np.nanmin(sens1_samps)
-print("Min sampled value of first sensitivity function: ", sens1_samps_min)
 sens2_samps_min = np.nanmin(sens2_samps)
-print("Min sampled value of second sensitivity function: ", sens2_samps_min)
 sens1_samps_max = np.nanmax(sens1_samps)
-print("Max sampled value of first sensitivity function: ", sens1_samps_max)
 sens2_samps_max = np.nanmax(sens2_samps)
-print("Max sampled value of second sensitivity function: ", sens2_samps_max)
+
+# Record info
+with open(output_file, "a") as file:
+    file.write(f"Min sampled value of {label1}: {sens1_samps_min}\n")
+    file.write(f"Min sampled value of {label2}: {sens2_samps_min}\n")
+    file.write(f"Max sampled value of {label1}: {sens1_samps_max}\n")
+    file.write(f"Max sampled value of {label2}: {sens2_samps_max}\n")
 
 # Get MOSA energies
 deltaE_sens1 = sens1_samps_max - sens1_samps_min
-print("Sampled energy difference in 1st sensitivity function: ", deltaE_sens1)
 deltaE_sens2 = sens2_samps_max - sens2_samps_min
-print("Sampled energy difference in 2nd sensitivity function: ", deltaE_sens2)
 deltaE = np.linalg.norm([deltaE_sens1, deltaE_sens2])
-print("Sampled cumulative energy difference: ", deltaE)
+
+# Record info
+with open(output_file, "a") as file:
+    file.write(f"Sampled energy difference in {label1}: {deltaE_sens1}\n")
+    file.write(f"Sampled energy difference in {label2}: {deltaE_sens2}\n")
+    file.write(f"Sampled cumulative energy difference: {deltaE}\n")
 
 # Get hot temperature
 print("Now setting up hot run...")
 probability_hot = float(input("Please enter probability of transitioning to a higher energy state (if in doubt enter 0.9): "))
 temp_hot = deltaE / np.log(1/probability_hot)
-print("Hot run temp = ", temp_hot)
+
+# Record info
+with open(output_file, "a") as file:
+    file.write(f"Chosen probability of transitioning to a higher energy state in hot run: {probability_hot}\n")
+    file.write(f"Corresponding hot run tempertaure: {temp_hot}\n")
+    file.write("(This temperature will be used to start the inital anneal.)")
 
 # Get cold temperature
 print("Now setting up cold run...")
 probability_cold = float(input("Please enter probability of transitioning to a higher energy state (if in doubt enter 0.01): "))
 temp_cold = deltaE / np.log(1/probability_cold)
-print("Cold run temp = ", temp_cold)
+
+# Record info
+with open(output_file, "a") as file:
+    file.write(f"Chosen probability of transitioning to a higher energy state in cold run: {probability_cold}\n")
+    file.write(f"Corresponding cold run tempertaure: {temp_cold}\n")
+    file.write("(This temperature will be used to estimate when to end hot run. The actual finishing temperature from the hot run will used for the cold run.)\n")
 
 
 # -------------- PART 2a: MOSA PREPARATIONS --------------
 
-# Print prompt
-print("Now preparing to MOSA...")
 
-# Get number of MOSA runs
-runs = int(input("Number of MOSA runs you would like to complete (if in doubt enter 5): "))
-print("MOSA runs = ", runs)
+# Print prompts
+print("Now preparing to MOSA...")
+runs = int(input("Please enter number of MOSA runs you would like to complete (if in doubt enter 5): "))
+iterations = int(input("Please enter number of random walks per run (if in doubt enter 200): "))
+
+# Record info
+with open(output_file, "a") as file:
+    file.write("--------------------------------------------\n")
+    file.write("MOSA run parameters:\n")
+    file.write("--------------------------------------------\n")
+    file.write(f"Chosen number of MOSA runs: {runs}\n")
+    file.write(f"Chosen number of random walks per run: {iterations}\n")
 
 # For each run
 for run in range(runs):
     print(f"MOSA run number: {run}")
+    
+    # Record info
+    with open(output_file, "a") as file:
+        file.write(f"\n")
+        file.write(f"MOSA RUN NUMBER {run+1}:\n")
     
     # Define lists to collect Pareto-optimal sensitivity and parameter values from each MOSA run
     pareto_Salpha = []
@@ -350,7 +417,7 @@ for run in range(runs):
     pareto_alpha  = []
     pareto_n      = []
     
-    # Delete archive and checkpoint json files
+    # Delete archive and checkpoint json files at the start of each new run
     files_to_delete = ["archive.json", "checkpoint.json"]
     for file in files_to_delete:
         if os.path.exists(file):
@@ -365,60 +432,63 @@ for run in range(runs):
     seed(0)
 	
 	# Initialisation of MOSA
-#    opt = mosa.Anneal()
-#    opt.archive_size = 5000
-#    opt.maximum_archive_rejections = opt.archive_size
-#    opt.population = {"alpha": (alpha_min, alpha_max), "n": (n_min, n_max)}
-    opt=mosa.Anneal()
-    opt.archive_size=5000
-    opt.maximum_archive_rejections=5000
-    opt.population={"alpha":(0.01,50),"n":(0.01,10)}
+    opt = mosa.Anneal()
+    opt.archive_size = 10000
+    opt.maximum_archive_rejections = opt.archive_size
+    opt.population = {"alpha": (alpha_min, alpha_max), "n": (n_min, n_max)}
 	
 	# Hot run options
-#    opt.initial_temperature = temp_hot
-#    opt.number_of_iterations = 100
-#    opt.temperature_decrease_factor = 0.9
-#    no_of_steps_from_hot_to_cold = int(np.ceil((temp_hot-temp_cold)/opt.temperature_decrease_factor))
-#    opt.number_of_temperatures = no_of_steps_from_hot_to_cold
-#    opt.number_of_solution_elements = {"alpha":1, "n":1}
-#    step_scaling = 1/opt.number_of_iterations
-#    opt.mc_step_size= {"alpha": (alpha_max-alpha_min)*step_scaling , "n": (n_max-n_min)*step_scaling}
-    opt.initial_temperature=500
-    opt.number_of_iterations=200
-    opt.number_of_temperatures=200
-    opt.temperature_decrease_factor=0.95
-    opt.number_of_solution_elements={"alpha":1,"n":1}
-    opt.mc_step_size={"alpha":1,"n":1}
+    opt.initial_temperature = temp_hot
+    opt.number_of_iterations = iterations
+    opt.temperature_decrease_factor = 0.95
+    opt.number_of_temperatures = int(np.ceil(np.log(temp_cold / temp_hot) / np.log(opt.temperature_decrease_factor)))
+    opt.number_of_solution_elements = {"alpha":1, "n":1}
+    step_scaling = 1/opt.number_of_iterations
+    opt.mc_step_size= {"alpha": (alpha_max-alpha_min)*step_scaling , "n": (n_max-n_min)*step_scaling}
     	
     # Hot run
     start_time = time.time()
-    opt.evolve(fobj)
-    print(f"Hot run time: {time.time() - start_time} seconds")
+    hotrun_stoppingtemp = opt.evolve(fobj)
+
+    # Record info
+    with open(output_file, "a") as file:
+        file.write(f"\n")
+        file.write(f"HOT RUN NO. {run+1}:\n")
+        file.write(f"Hot run time: {time.time() - start_time} seconds\n")
+        file.write(f"Hot run stopping temperature = cold run starting temperature: {hotrun_stoppingtemp}\n")
+        file.write(f"Number of temperatures: {opt.number_of_temperatures}\n")
+        file.write(f"Step scaling factor: {step_scaling}\n")
 	
     # Cold run options
-#    opt.initial_temperature = temp_cold
-#    opt.number_of_iterations = 100
-#    opt.number_of_temperatures = 100
-#    opt.temperature_decrease_factor = 0.9
-#    opt.number_of_solution_elements = {"alpha":1,"n":1}
-#    step_scaling = 1/opt.number_of_iterations
-#    opt.mc_step_size= {"alpha": (alpha_max-alpha_min)*step_scaling , "n": (n_max-n_min)*step_scaling}
-    opt.initial_temperature=1
-    opt.number_of_iterations=200
-    opt.number_of_temperatures=200
-    opt.temperature_decrease_factor=0.95
-    opt.number_of_solution_elements={"alpha":1,"n":1}
-    opt.mc_step_size={"alpha":0.1,"n":0.1}
+    opt.initial_temperature = hotrun_stoppingtemp
+    opt.number_of_iterations = iterations
+    opt.number_of_temperatures = 100
+    opt.temperature_decrease_factor = 0.9
+    opt.number_of_solution_elements = {"alpha":1,"n":1}
+    step_scaling = 1/opt.number_of_iterations
+    opt.mc_step_size= {"alpha": (alpha_max-alpha_min)*step_scaling , "n": (n_max-n_min)*step_scaling}
 	
     # Cold run
     start_time = time.time()
-    opt.evolve(fobj)
+    coldrun_stoppingtemp = opt.evolve(fobj)
     print(f"Cold run time: {time.time() - start_time} seconds")
+    
+    # Record info
+    with open(output_file, "a") as file:
+        file.write(f"\n")
+        file.write(f"COLD RUN NO. {run+1}:\n")
+        file.write(f"Cold run time: {time.time() - start_time} seconds\n")
+        file.write(f"Cold run stopping temperature: {coldrun_stoppingtemp}\n")
     
     # Output 
     start_time = time.time()
     pruned = opt.prunedominated()
-    print(f"Pruning time: {time.time() - start_time} seconds")
+    
+    # Record info
+    with open(output_file, "a") as file:
+        file.write(f"\n")
+        file.write(f"PRUNE NO. {run+1}:\n")
+        file.write(f"Prune time: {time.time() - start_time} seconds\n")
 	
 	# -------------- PART 2c: STORE AND PLOT PRUNED PARETO FRONT IN SENSITIVITY SPACE --------------
 	
@@ -428,7 +498,10 @@ for run in range(runs):
         
     # Check archive length
     length = len([solution["alpha"] for solution in data["Solution"]])
-    print(f"Archive length: {length}")
+    
+    # Record info
+    with open(output_file, "a") as file:
+        file.write(f"Archive length after prune: {length}\n")
     
     # Extract the "Values" coordinates (pairs of values)
     values = data["Values"]
@@ -453,7 +526,7 @@ for run in range(runs):
     plt.close()
     
 	
-    # -------------- PART 2d: STORE AND SAVE CORRESPONDING POINTS IN PARAMETER SPACE --------------
+    # -------------- PART 2d: STORE AND PLOT CORRESPONDING POINTS IN PARAMETER SPACE --------------
     
     # Extract alpha and n values from the solutions
     alpha_values = [solution["alpha"] for solution in data["Solution"]]
@@ -491,64 +564,98 @@ for run in range(runs):
 
 # -------------- PART 2f: COMBINE PARETO DATA --------------
 
-# Combine and save Pareto Salpha data
-
+# Record text file prompt
+with open(output_file, "a") as file:
+    file.write("--------------------------------------------\n")
+    file.write("Combining all individual run data:\n")
+    file.write("--------------------------------------------\n")
+    
+# Combine Pareto Salpha data
 pareto_Salpha_combined = np.empty((0,))
 for run in range(runs):
     filename = f"pareto_Salpha_run{run}.npy"
     pareto_Salpha = np.load(filename)  
     pareto_Salpha_combined = np.concatenate((pareto_Salpha_combined, pareto_Salpha))
-
+    
+# Save Pareto Salpha data
 save_filename = "pareto_Salpha_combined.npy"
 np.save(save_filename, pareto_Salpha_combined)
 
+# Record length of Pareto Salpha data
+length = len(pareto_Salpha_combined)
+with open(output_file, "a") as file:
+    file.write(f"Length of pareto_Salpha_combined: {length}\n")
+    
+# Free up memory
 del pareto_Salpha_combined, pareto_Salpha
 gc.collect()
 
-# Combine and save Pareto Sn data
 
+# Combine Pareto Sn data
 pareto_Sn_combined = np.empty((0,))
 for run in range(runs):
     filename = f"pareto_Sn_run{run}.npy"
     pareto_Sn = np.load(filename)  
     pareto_Sn_combined = np.concatenate((pareto_Sn_combined, pareto_Sn))
-
+    
+# Save Pareto Sn data
 save_filename = "pareto_Sn_combined.npy"
 np.save(save_filename, pareto_Sn_combined)
 
+# Record length of Pareto Sn data
+length = len(pareto_Sn_combined)
+with open(output_file, "a") as file:
+    file.write(f"Length of pareto_Sn_combined: {length}\n")
+    
+# Free up memory
 del pareto_Sn_combined, pareto_Sn
 gc.collect()
 
-# Combine and save Pareto alpha data
 
+# Combine Pareto alpha data
 pareto_alpha_combined = np.empty((0,))
 for run in range(runs):
     filename = f"pareto_alpha_run{run}.npy"
     pareto_alpha = np.load(filename)  
     pareto_alpha_combined = np.concatenate((pareto_alpha_combined, pareto_alpha))
-
+    
+# Save Pareto alpha data
 save_filename = "pareto_alpha_combined.npy"
 np.save(save_filename, pareto_alpha_combined)
 
+# Record length of Pareto alpha data
+length = len(pareto_alpha_combined)
+with open(output_file, "a") as file:
+    file.write(f"Length of pareto_alpha_combined: {length}\n")
+    
+# Free up memory
 del pareto_alpha_combined, pareto_alpha
 gc.collect()
 
-# Combine and save Pareto n data
 
+# Combine Pareto n data
 pareto_n_combined = np.empty((0,))
 for run in range(runs):
     filename = f"pareto_n_run{run}.npy"
     pareto_n = np.load(filename)  
     pareto_n_combined = np.concatenate((pareto_n_combined, pareto_n))
-
+    
+# Save Pareto n data
 save_filename = "pareto_n_combined.npy"
 np.save(save_filename, pareto_n_combined)
 
+# Record length of Pareto n data
+length = len(pareto_n_combined)
+with open(output_file, "a") as file:
+    file.write(f"Length of pareto_n_combined: {length}\n")
+    
+# Free up memory
 del pareto_n_combined, pareto_n
 gc.collect()
 
 
 # -------------- PART 3: CUMULATIVE NEW PARETO OPTIMAL POINTS --------------
+
 
 # 3a: LOAD DATA
 
@@ -587,7 +694,7 @@ plt.savefig(f'cumulative_pareto_parameters.png', dpi=300)
 plt.close()
 
 
-# -------------- PART 4: REDUCED GRID SEARCH --------------
+# -------------- PART 4: GETTING NEW REDUCED PARAMETER SPACE FOR GRID SEARCH --------------   <--------------------------------UP TO HERE!!!!!
 
 # 4a: FIND RECTANGULAR PRISM BOUNDS
 
@@ -598,29 +705,36 @@ points = np.array(list(zip(pareto_alpha_combined, pareto_n_combined)))
 min_vals = np.min(points, axis=0)
 max_vals = np.max(points, axis=0)
 
-print(min_vals)
-print(max_vals)
+# Record info
+with open(output_file, "a") as file:
+    file.write("-------------------------------------------------\n")
+    file.write(f"Bounds of new parameter space after {runs} runs:\n")
+    file.write("-------------------------------------------------\n")
+    file.write(f"alpha_min: {min_vals[0]}, alpha_max: {max_vals[0]}\n")
+    file.write(f"n_min: {min_vals[1]}, n_max: {max_vals[1]}\n")
 
 # 4b: COMPARE OLD VS NEW PARAM SPACE AREA
 
 # Volume of the bounding rectangular prism
 new_param_area = (max_vals[0] - min_vals[0]) * (max_vals[1] - min_vals[1])
-print(new_param_area)
 # Volume of original parameter space
 old_param_area = (alpha_max-alpha_min) * (n_max-n_min)
-print(old_param_area)
 # Volume reduction as percentage
 percentage = (new_param_area / old_param_area) * 100
-# Print percentage
-print(f"New parameter space is {percentage:.2f}% of original parameter space volume.")
+
+# Record info
+with open(output_file, "a") as file:
+    file.write(f"New parameter space area: {new_param_area}\n")
+    file.write(f"Old parameter space area: {old_param_area}\n")
+    file.write(f"New parameter space is {percentage:.2f}% of original parameter space volume.\n")
 
 # 4c: SAMPLE WITHIN NEW PARAM SPACE WITH SAME DENSITY AS ORIGINAL GRID SEARCH
 
 # Create a grid of evenly spaced points from old parameter space
-a_density = 5000
-n_density = 5000
-a_vals = np.linspace(alpha_min,alpha_max,a_density)
-n_vals = np.linspace(n_min,n_max,n_density)
+alpha_numofpoints = 5000
+n_numofpoints = 5000
+a_vals = np.linspace(alpha_min,alpha_max,alpha_numofpoints)
+n_vals = np.linspace(n_min,n_max,n_numofpoints)
 grid_x, grid_y = np.meshgrid(a_vals,n_vals)
 grid_points = np.vstack([grid_x.ravel(), grid_y.ravel()]).T
 
@@ -645,15 +759,18 @@ inside_rect_points = grid_points[inside_rect_mask]
 # Save data
 np.save("inside_points.npy", inside_rect_points)
 
+# Record info
+with open(output_file, "a") as file:
+    file.write(f"Alpha line density: {alpha_numofpoints / (alpha_max-alpha_min)} points per unit alpha \n")
+    file.write(f"n line density: {n_numofpoints / (n_max-n_min)} points per unit n \n")
+    file.write(f"Area density: {(alpha_numofpoints * n_numofpoints) / ((alpha_max-alpha_min) * (n_max-n_min))} points per unit area \n")
+    file.write(f"Number of points: {np.shape(inside_rect_points)[0]}\n")
 
-# 4d: Plot bounding box
+
+# 4d: PLOT BOUNDING BOX
 
 # Create a figure and axis
 fig, ax = plt.subplots(figsize=(6, 6))
-
-# Scatter plot of sampled points
-ax.scatter(inside_rect_points[:, 0], inside_rect_points[:, 1], 
-           s=1, color="blue", alpha=0.3, label="Sampled Points")
 
 # Plot the bounding rectangle
 bounding_box = np.array([
@@ -665,75 +782,14 @@ bounding_box = np.array([
 ])
 ax.plot(bounding_box[:, 0], bounding_box[:, 1], color="red", linewidth=2, label="Bounding Rectangle")
 
-# Set labels and title
-ax.set_xlabel("Alpha")
-ax.set_ylabel("N")
+# Cosmetics 
+ax.set_xlabel(r"$\alpha$")
+ax.set_ylabel(r"$n$")
 ax.set_title("Bounding Rectangle and Sampled Points")
 ax.set_xlim([alpha_min,alpha_max])
 ax.set_ylim([n_min,n_max])
-
-# Add legend
 ax.legend()
 
-# Show plot
-plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# -------------- PART 5: RECORD STATS --------------
-
-# Make a text file
-output_file = f"new_paramspace_sensfuncs_{choice1}_and_{choice2}.txt"
-with open(output_file, "w") as file:
-
-    # Record system info
-    file.write("------------\n")
-    file.write("System info:\n")
-    file.write("------------\n")
-    file.write(f"Sensitivity function 1: {label1}\n")
-    file.write(f"Sensitivity function 2: {label2}\n")
-
-    # Record MOSA stats
-    file.write("--------------------------------------------\n")
-    file.write("Initial sampling to probe system properties:\n")
-    file.write("--------------------------------------------\n")
-    file.write(f"alpha values from {alpha_min} to {alpha_max} with {alpha_sampsize} linspaced samples\n")
-    file.write(f"n values from {n_min} to {n_max} with {n_sampsize} linspaced samples\n")
-    file.write(f"Sampled energy difference in S_alpha sensitivity function: {deltaE_sens1}\n")
-    file.write(f"Sampled energy difference in S_n sensitivity function: {deltaE_sens2}\n")
-    file.write(f"Sampled cumulative energy difference: {deltaE}\n")
-    file.write(f"Probability of transitioning to a higher energy state in hot run: {probability_hot}\n")
-    file.write(f"Hot run tempertaure: {temp_hot}\n")
-    file.write(f"Probability of transitioning to a higher energy state in cold run: {probability_cold}\n")
-    file.write(f"Cold run tempertaure: {temp_cold}\n")
-
-    # Record bounds
-    file.write("-------------------------------------------------\n")
-    file.write(f"Bounds of new parameter space after {runs} runs:\n")
-    file.write("-------------------------------------------------\n")
-    file.write(f"alpha_min: {min_vals[0]}, alpha_max: {max_vals[0]}\n")
-    file.write(f"n_min: {min_vals[1]}, n_max: {max_vals[1]}\n")
-    file.write(f"New parameter space is {percentage:.2f}% of original parameter space volume.")
-    
-    # Record reduced parameter space stats
-    file.write("-------------------------------------------------\n")
-    file.write(f"Stats of new parameter space after {runs} runs:\n")
-    file.write("-------------------------------------------------\n")
-    file.write(f"Density: {(a_density * n_density) / ((alpha_max-alpha_min) * (n_max-n_min))} points per unit area \n")
-    file.write(f"Number of points: {np.shape(inside_rect_points)[0]}\n")
+# Save and close
+plt.savefig(f'new_vs_old_paramspace.png', dpi=300)
+plt.close()

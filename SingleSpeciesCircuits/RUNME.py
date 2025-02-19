@@ -140,47 +140,35 @@ def ssfinder(alpha_val,n_val):
     # If we have one steady state                                                                                       #|
     if numss == 1:                                                                                                      #|
                                                                                                                         #|
-        # Create an empty numpy array                                                                                   #|
-        xss1 = np.array([])                                                                                             #|
-                                                                                                                        #|
         # Load initial guesses for solving which can be a function of a choice of alpha and n values                    #|
         InitGuesses = config.generate_initial_guesses(alpha_val, n_val)                                                 #|
                                                                                                                         #|
         # Define array of parameters                                                                                    #|
         params = np.array([alpha_val, n_val])                                                                           #|
                                                                                                                         #|
-        # Initially we don't have a valid solution                                                                      #|
-        is_valid = False                                                                                                #|
-                                                                                                                        #|
         # For each initial guess in the list of initial guesses we loaded                                               #|
         for InitGuess in InitGuesses:                                                                                   #|
                                                                                                                         #|
             # Get solution details                                                                                      #|
             output, infodict, intflag, _ = fsolve(Equs, InitGuess, args=(t, params), xtol=1e-12, full_output=True)      #|
-            xss = output                                                                                                #| If we inputted 1 
+            xss = output                                                                                               #| If we inputted 1 
             fvec = infodict['fvec']                                                                                     #| for numss prompt
                                                                                                                         #|
             # Check if stable attractor point                                                                           #|
             delta = 1e-8                                                                                                #|
-            dEqudx = (Equs(xss+delta, t, params)-Equs(xss, t, params))/delta                                            #|
+            dEqudx = (Equs(xss+delta, t, params)-Equs(xss, t, params))/delta                                          #|
             jac = np.array([[dEqudx]])                                                                                  #|
             eig = jac                                                                                                   #|
             instablility = np.real(eig) >= 0                                                                            #|
                                                                                                                         #|
             # Check if it is sufficiently large, has small residual, and successfully converges                         #|
-            if xss > 0.04 and np.linalg.norm(fvec) < 1e-10 and intflag == 1 and instablility==False:                    #|
-                # If so, it is a valid solution and we store it then end the loop                                       #|
-                xss1 = np.append(xss1,xss)                                                                              #|
-                is_valid = True                                                                                         #|
-                break                                                                                                   #|
+            if xss > 0.04 and np.linalg.norm(fvec) < 1e-10 and intflag == 1 and instablility==False:                   #|
+                # If so, it is a valid solution and we return it                                                        #|
+                return xss                                                                                             #|
                                                                                                                         #|
         # If no valid solutions are found after trying all initial guesses                                              #|
-        if is_valid == False:                                                                                           #|                                                                         #|
-            # Store a nan                                                                                               #|
-            xss1 = np.append(xss1,float('nan'))                                                                         #|
+        return float('nan')                                                                                             #|
                                                                                                                         #|
-        # Return list                                                                                                   #|                                                                                                   
-        return xss1                                                                                                     #|
     # -------------------------------------------------------------------------------------------------------------------
         
     # -------------------------------------------------------------------------------------------------------------------
@@ -274,6 +262,18 @@ def senpair(xss_list, alpha_list, n_list, choice1, choice2):
 
 # DEFINE OBJECTIVE FUNCTION TO ANNEAL
 def fobj(solution):
+
+    '''
+    Uncomment the following line if need to see solution printed.
+    It will look like this:
+    Solution:  {'alpha': 3.239629898497018, 'n': 9.996303250351326}
+    Solution:  {'alpha': 2.7701015749115143, 'n': 9.996303250351326}
+    Solution:  {'alpha': 2.6542032278143664, 'n': 9.910685695594527}
+    Solution:  {'alpha': 2.6542032278143664, 'n': 9.363644921265}
+    Solution:  {'alpha': 3.0278948409846858, 'n': 9.996303250351326}
+    Solution:  {'alpha': 2.6451188083692183, 'n': 9.996303250351326}
+    '''
+    # print("Solution: ", solution)
 	
 	# Update parameter set
     alpha_val = solution["alpha"]
@@ -392,7 +392,7 @@ with open(output_file, "a") as file:
 # Print prompts
 print("Now preparing to MOSA...")
 runs = int(input("Please enter number of MOSA runs you would like to complete (if in doubt enter 5): "))
-iterations = int(input("Please enter number of random walks per run (if in doubt enter 200): "))
+iterations = int(input("Please enter number of random walks per run (if in doubt enter 100): "))
 
 # Record info
 with open(output_file, "a") as file:
@@ -713,6 +713,10 @@ with open(output_file, "a") as file:
     file.write(f"alpha_min: {min_vals[0]}, alpha_max: {max_vals[0]}\n")
     file.write(f"n_min: {min_vals[1]}, n_max: {max_vals[1]}\n")
 
+# Free up memory
+del points
+gc.collect()
+
 # 4b: COMPARE OLD VS NEW PARAM SPACE AREA
 
 # Volume of the bounding rectangular prism
@@ -756,6 +760,10 @@ inside_rect_mask = (
 )
 inside_rect_points = grid_points[inside_rect_mask]
 
+# Free up memory
+del grid_points
+gc.collect()
+
 # Save data
 np.save("inside_points.npy", inside_rect_points)
 
@@ -765,7 +773,6 @@ with open(output_file, "a") as file:
     file.write(f"n line density: {n_numofpoints / (n_max-n_min)} points per unit n \n")
     file.write(f"Area density: {(alpha_numofpoints * n_numofpoints) / ((alpha_max-alpha_min) * (n_max-n_min))} points per unit area \n")
     file.write(f"Number of points: {np.shape(inside_rect_points)[0]}\n")
-
 
 # 4d: PLOT BOUNDING BOX
 
@@ -800,14 +807,14 @@ plt.close()
 
 # 5A: IMPORT PACKAGES...
 
-
 from tqdm import tqdm
 from paretoset import paretoset
 from joblib import Parallel, delayed
 
-
 # 5B: SOLVE FOR X STEADY STATE VALUES...
 
+# Print prompt
+print("Solving for x steady states in the new reduced parameter space...")
 
 # Get number of rows in the ParamPolygon
 rows = inside_rect_points.shape[0]
@@ -815,30 +822,14 @@ rows = inside_rect_points.shape[0]
 # Create empty arrays to store x steady states
 xssPolygon = np.empty((rows, 1))
 
-# Define function to solve for steady states
+# Define function to solve for steady states in parallel
 def solve_steady_state(rownum, ParamPolygon):
-
-    params = ParamPolygon[rownum]
     
     alpha_val = ParamPolygon[rownum][0]
     n_val = ParamPolygon[rownum][1]
-    InitGuesses = config.generate_initial_guesses(alpha_val, n_val)
     
-    for InitGuess in InitGuesses:
-        output, infodict, intflag, _ = fsolve(Equs, InitGuess, args=(t, params), xtol=1e-12, full_output=True)
-        xss = output
-        fvec = infodict['fvec']
-        
-        delta = 1e-8
-        dEqudx = (Equs(xss+delta, t, params)-Equs(xss, t, params))/delta
-        jac = np.array([[dEqudx]])
-        eig = jac
-        instablility = np.real(eig) >= 0
-
-        if xss > 0.04 and np.linalg.norm(fvec) < 1e-10 and intflag == 1 and instablility==False:
-            return xss, rownum
-
-    return float('nan'), rownum
+    xss = ssfinder(alpha_val,n_val)
+    return xss, rownum
 
 # Parallel processing to solve steady states
 results = Parallel(n_jobs=-1)(
@@ -855,6 +846,8 @@ np.savez('PostMOSA_EquilibriumPolygons.npz', xssPolygon=xssPolygon)
 
 # 5C: OBTAIN TABLE OF SENSITIVITIES...
 
+# Print prompt
+print("Obtaining sensitivity values in the new reduced parameter space...")
 
 # We want to get the following array
 #  -------------------------
@@ -890,8 +883,11 @@ np.save('PostMOSA_SensitivityPolygons.npy', SenPolygons)
 del xssPolygon
 gc.collect()
 
+
 # 5D: MOO...
 
+# Print prompt
+print("MOOing...")
 
 # Pareto minimisation will think NaNs are minimum. Replace NaNs with infinities.
 SenPolygons = np.where(np.isnan(SenPolygons), np.inf, SenPolygons)
@@ -911,18 +907,18 @@ gc.collect()
 
 # 5E: PLOT PARETO FRONT AND CORRESPONDING PARAMETERS...
 
+# Print prompt
+print("Plotting Pareto front and Pareto optimal parameters...")
 
+# Make plot
 fig, axes = plt.subplots(1, 2, figsize=(6,3), constrained_layout=True)
-
 axes[0].scatter(   pareto_Sens[:,0],   pareto_Sens[:,1],   s=10)
 axes[0].set_xlabel(label1)
 axes[0].set_ylabel(label2)
 axes[0].set_title(r'Pareto front')
-
 axes[1].scatter(   pareto_Params[:,0],   pareto_Params[:,1],   s=10)
 axes[1].set_xlabel(r'$\alpha$')
 axes[1].set_ylabel(r'$n$')
 axes[1].set_title(r'Pareto optimal parameters')
-
 plt.savefig('PostMOSA_ParetoPlot.png', dpi=300)
 plt.close()

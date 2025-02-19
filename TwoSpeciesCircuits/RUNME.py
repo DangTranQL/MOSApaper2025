@@ -150,19 +150,12 @@ def ssfinder(beta_x_val,beta_y_val,n_val):
 
     # If we have one steady state
     if numss == 1: 
-    
-        # Create an empty numpy array
-        xss1 = np.array([])
-        yss1 = np.array([])
         
         # Define initial guesses
         InitGuesses = config.generate_initial_guesses(beta_x_val, beta_y_val)
         
         # Define array of parameters
         params = np.array([beta_x_val, beta_y_val, n_val])
-        
-        # No valid solution initially
-        found_valid = False
         
         # For each until you get one that gives a solution or you exhaust the list
         for InitGuess in InitGuesses:
@@ -182,19 +175,13 @@ def ssfinder(beta_x_val,beta_y_val,n_val):
     
             # Check if it is sufficiently large, has small residual, and successfully converges
             if xss > 0.04 and yss > 0.04 and np.linalg.norm(fvec) < 1e-10 and intflag == 1 and instablility==False:
-                # If so, it is a valid solution and we store it then end the loop
-                xss1 = np.append(xss1,xss)
-                yss1 = np.append(yss1,yss)
-                found_valid = True
-                break 
+                # If so, it is a valid solution and we return it                                                        #|
+                return xss, yss
     
         # If no valid solutions are found after trying all initial guesses
-        if not found_valid:
-            # Store a nan
-            xss1 = np.append(xss1,float('nan'))
-            yss1 = np.append(yss1,float('nan'))
+        return float('nan'), float('nan')
         
-        return xss1, yss1
+        
     
     # If we have two steady states
     
@@ -729,7 +716,7 @@ plt.close()
 # 4a: FIND RECTANGULAR PRISM BOUNDS
 
 # Define scattered points in 3D space
-points = np.array(list(zip(pareto_betax_collection, pareto_betay_collection, pareto_n_collection)))
+points = np.array(list(zip(pareto_betax_combined, pareto_betay_combined, pareto_n_combined)))
 
 # Define rectangular prism that bounds the scatter
 min_vals = np.min(points, axis=0)
@@ -744,7 +731,11 @@ with open(output_file, "a") as file:
     file.write(f"betay_min: {min_vals[1]}, betay_max: {max_vals[1]}\n")
     file.write(f"n_min: {min_vals[2]}, n_max: {max_vals[2]}\n")
 
-# 3b: COMPARE OLD VS NEW PARAM SPACE VOLUMES
+# Free up memory
+del points
+gc.collect()
+
+# 4b: COMPARE OLD VS NEW PARAM SPACE VOLUMES
 
 # Volume of the bounding rectangular prism
 new_param_vol = (max_vals[0] - min_vals[0]) * (max_vals[1] - min_vals[1]) * (max_vals[2] - min_vals[2])
@@ -755,24 +746,62 @@ percentage = (new_param_vol / old_param_vol) * 100
 
 # Record info
 with open(output_file, "a") as file:
-    file.write(f"New parameter space area: {new_param_volume}\n")
-    file.write(f"Old parameter space area: {old_param_volume}\n")
+    file.write(f"New parameter space volume: {new_param_vol}\n")
+    file.write(f"Old parameter space volume: {old_param_vol}\n")
     file.write(f"New parameter space is {percentage:.2f}% of original parameter space volume.\n")
 
+# 4c: SAMPLE WITHIN NEW PARAM SPACE WITH SAME DENSITY AS ORIGINAL GRID SEARCH
 
+# Create a grid of evenly spaced points from old parameter space
+beta_x_numofpoints = 1000
+beta_y_numofpoints = 1000
+n_numofpoints = 1000
+beta_x_vals = np.linspace(beta_x_min, beta_x_max, beta_x_numofpoints)
+beta_y_vals = np.linspace(beta_y_min, beta_y_max, beta_y_numofpoints)
+n_vals = np.linspace(n_min, n_max, n_numofpoints)
+grid_x, grid_y, grid_z = np.meshgrid(beta_x_vals, beta_y_vals, n_vals, indexing='ij')
+grid_points = np.vstack([grid_x.ravel(), grid_y.ravel(), grid_z.ravel()]).T
 
+# Compute min and max values along each dimension (x, y, z)
+min_x, min_y, min_z = min_vals
+max_x, max_y, max_z = max_vals
 
+# Define the 8 corner points of the bounding box (rectangular prism)
+bounding_box = np.array([
+    [min_x, min_y, min_z],  # Bottom-front-left
+    [max_x, min_y, min_z],  # Bottom-front-right
+    [max_x, max_y, min_z],  # Bottom-back-right
+    [min_x, max_y, min_z],  # Bottom-back-left
+    [min_x, min_y, max_z],  # Top-front-left
+    [max_x, min_y, max_z],  # Top-front-right
+    [max_x, max_y, max_z],  # Top-back-right
+    [min_x, max_y, max_z]   # Top-back-left
+])
 
+# Filter points inside the 3D bounding box
+inside_prism_mask = (
+    (grid_points[:, 0] >= min_x) & (grid_points[:, 0] <= max_x) &
+    (grid_points[:, 1] >= min_y) & (grid_points[:, 1] <= max_y) &
+    (grid_points[:, 2] >= min_z) & (grid_points[:, 2] <= max_z)
+)
+inside_prism_points = grid_points[inside_prism_mask]
 
+# Free up memory
+del grid_points
+gc.collect()
 
+# Save data
+np.save("inside_points.npy", inside_prism_points)
 
+# Record info
+with open(output_file, "a") as file:
+    file.write(f"beta_x line density: {beta_x_numofpoints / (beta_x_max-beta_x_min)} points per unit beta_x \n")
+    file.write(f"beta_y line density: {beta_y_numofpoints / (beta_y_max-beta_y_min)} points per unit beta_y \n")
+    file.write(f"n line density: {n_numofpoints / (n_max-n_min)} points per unit n \n")
+    file.write(f"Volume density: {(beta_x_numofpoints * beta_y_numofpoints * n_numofpoints) / ((beta_x_max-beta_x_min) * (beta_y_max-beta_y_min) * (n_max-n_min))} points per unit volume \n")
+    file.write(f"Number of points: {np.shape(inside_prism_points)[0]}\n")
 
-
-
-
-
-
-# 3c: PLOT OLD VS PARAM SPACE
+# 4d: PLOT BOUNDING BOX
 
 # Create the bounding box of the new parameter space
 new_param_box = pv.Box(bounds=(min_vals[0], max_vals[0], min_vals[1], max_vals[1], min_vals[2], max_vals[2]))
@@ -797,57 +826,225 @@ plotter.show_bounds(
 # Show plot
 plotter.show()
 # Save plot
-output_file = f"paramspaces_sensfuncs_{choice1}_and_{choice2}.png"
+output_file = f"paramspaces_sensfuncs_{label1}_and_{label2}.png"
 plotter.screenshot(output_file)
 
 
+# -------------- PART 5: GRID SEARCH --------------
 
-# ------------------------------------------------------------------------------------------------------------------
 
-# If we have enough points to make a convex hull (at least 4 points)
-if len(points)>3:
+# 5A: IMPORT PACKAGES...
+
+from tqdm import tqdm
+from paretoset import paretoset
+from joblib import Parallel, delayed
+
+# 5B: SOLVE FOR X STEADY STATE VALUES...
+
+# Print prompt
+print("Solving for x steady states in the new reduced parameter space...")
+
+# Get number of rows in inside_prism_points
+rows = inside_prism_points.shape[0]
+
+# Create empty arrays to store x steady states
+if numss == 1:
+
+    # Create empty arrays to store x and y steady states
+    xssPrism = np.empty((rows, 1))
+    yssPrism = np.empty((rows, 1))
     
-    # Step 2: Compute the convex hull
-    hull = ConvexHull(points)
+    # Define function to solve for steady states in parallel
+    def solve_steady_state(rownum, ParamPrism):
+        
+        beta_x_val = ParamPrism[rownum][0]
+        beta_y_val = ParamPrism[rownum][1]
+        n_val = ParamPrism[rownum][2]
+        
+        xss, yss = ssfinder(beta_x_val,beta_y_val,n_val)
+        return xss, yss, rownum
+   
+    # Parallel processing to solve steady states
+    results = Parallel(n_jobs=-1)(
+        delayed(solve_steady_state)(rownum, inside_prism_points)
+        for rownum in range(rows))
+        
+    # Process results and store them in the polyhedron arrays
+    for xss, yss, rownum in results:
+        xssPrism[rownum] = xss
+        yssPrism[rownum] = yss
     
-    # Step 3: Create a Delaunay triangulation for point inclusion
-    tri = Delaunay(points[hull.vertices])
+    # Save arrays
+    np.savez('PostMOSA_EquilibriumPrisms.npz', xssPrism=xssPrism, yssPrism=yssPrism)
     
-    # Step 4: Define the voxel grid
-    # Define grid spacing (distance between points)
-    grid_spacing = 0.05
-    # Define bounding box
-    min_bounds = points.min(axis=0)
-    max_bounds = points.max(axis=0)
-    # Create a 3D grid of points
-    x = np.arange(min_bounds[0], max_bounds[0], grid_spacing)
-    y = np.arange(min_bounds[1], max_bounds[1], grid_spacing)
-    z = np.arange(min_bounds[2], max_bounds[2], grid_spacing)
-    grid_x, grid_y, grid_z = np.meshgrid(x, y, z)
-    grid_points = np.vstack([grid_x.ravel(), grid_y.ravel(), grid_z.ravel()]).T
+# 5C: OBTAIN TABLE OF SENSITIVITIES...
+
+# Print prompt
+print("Obtaining sensitivity values in the new reduced parameter space...")
+
+if numss == 1:
+
+    # We want to get the following array
+    #  -----------------------------------
+    # |    S_choice 1   |    S_choice 2   |
+    # |         #       |         #       |
+    # |         #       |         #       |
+    # |         #       |         #       |
+    # |         #       |         #       |
+    #  -----------------------------------
     
-    # Step 5: Check inclusion in the convex hull
-    mask = tri.find_simplex(points) >= 0
-    hull_samples = grid_points[mask]
+    def compute_sensitivities(rownum, ParamPrism, xssPrism, yssPrism, choice1, choice2):
+        beta_x_val = ParamPrism[rownum, 0]
+        beta_y_val = ParamPrism[rownum, 1]
+        n_val = ParamPrism[rownum, 2]
     
-    # Step 6: Plot the convex hull
-    fig1 = plt.figure()
-    ax1 = fig1.add_subplot(111, projection="3d")
-    ax1.scatter(points[:, 0], points[:, 1], points[:, 2], c="blue", alpha=0.5, label="Original Points")
-    for simplex in hull.simplices:
-        ax1.plot(points[simplex, 0], points[simplex, 1], points[simplex, 2], "k-")
-    ax1.set_title("Convex Hull")
-    plt.show()
+        xss_val = xssPrism[rownum]
+        yss_val = xssPrism[rownum]
     
-    # Step 7: Plot the sampled points inside the convex hull
-    fig2 = plt.figure()
-    ax2 = fig2.add_subplot(111, projection="3d")
-    ax2.scatter(hull_samples[:, 0], hull_samples[:, 1], evenly_spaced_points[:, 2], c="red", alpha=0.8, label="Sampled Points")
-    ax2.set_title("Sampled Points Inside Convex Hull")
-    plt.show()
+        sensitivity_function_map = {
+            1: lambda: S_betax_xss_analytic(xss_val, yss_val, n_val, beta_x_val, beta_y_val),
+            2: lambda: S_betax_yss_analytic(xss_val, yss_val, n_val, beta_x_val, beta_y_val),
+            3: lambda: S_betay_xss_analytic(xss_val, yss_val, n_val, beta_x_val, beta_y_val),
+            4: lambda: S_betay_yss_analytic(xss_val, yss_val, n_val, beta_x_val, beta_y_val),
+            5: lambda: S_n_xss_analytic(xss_val, yss_val, n_val, beta_x_val, beta_y_val),
+            6: lambda: S_n_yss_analytic(xss_val, yss_val, n_val, beta_x_val, beta_y_val),
+        }
     
-    # Output the result
-    print(f"Number of evenly spaced points: {len(evenly_spaced_points)}")
-# ------------------------------------------------------------------------------------------------------------------
+        # Compute only the selected functions
+        return np.array([sensitivity_function_map[choice1](), sensitivity_function_map[choice2]()])
+    
+    # Parallel processing for sensitivity calculations
+    sensitivity_results = Parallel(n_jobs=-1)(
+        delayed(compute_sensitivities)(rownum, inside_prism_points, xssPrism, yssPrism, choice1, choice2)
+        for rownum in range(rows))
+    
+    # Collect results (the name SenPrisms is plural because in the same prism parameter region, we have multiple sensitivity values)
+    SenPrisms = np.array(sensitivity_results).squeeze()
+    
+    # Save table
+    np.save('PostMOSA_SensitivityPrisms.npy', SenPrisms)
+    
+    # Free up memory
+    del xssPrism, yssPrism
+    gc.collect()
+
+# 5D: MOO...
+
+# Print prompt
+print("MOOing...")
+
+if numss == 1:
+
+    # Pareto minimisation will think NaNs are minimum. Replace NaNs with infinities.
+    SenPrisms = np.where(np.isnan(SenPrisms), np.inf, SenPrisms)
+    mask = paretoset(SenPrisms, sense=["min", "min"])
+    pareto_Sens = SenPrisms[mask]
+    pareto_Params = inside_prism_points[mask]
+    
+    # Saving
+    np.save('ParetoMask.npy', mask)
+    np.save('SensitivityPareto.npy', pareto_Sens)
+    np.save('ParamPareto.npy', pareto_Params)
+    
+    # Free up memory
+    del inside_prism_points, SenPrisms, mask
+    gc.collect()
+    
+    
+# 5E: PLOT PARETO FRONT AND CORRESPONDING PARAMETERS...
+    
+# Print prompt
+print("Plotting Pareto front and Pareto optimal parameters...")
+
+if numss == 1:
+    
+    # Make plot
+    fig = plt.figure(figsize=(8, 3), constrained_layout=True)
+    ax1 = fig.add_subplot(1, 2, 1)
+    ax1.scatter(pareto_Sens[:, 0], pareto_Sens[:, 1], s=10)
+    ax1.set_xlabel(label1)
+    ax1.set_ylabel(label2)
+    ax1.set_title(r'Pareto front')
+    ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+    ax2.scatter(pareto_Params[:, 0], pareto_Params[:, 1], pareto_Params[:, 2], s=10)
+    ax2.set_xlabel(r'$\beta_x$')
+    ax2.set_ylabel(r'$\beta_y$')
+    ax2.set_zlabel(r'$n$')
+    ax2.set_title(r'Pareto optimal parameters')
+    plt.savefig('PostMOSA_ParetoPlot.png', dpi=300)
+    plt.close()
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## ARCHIVE:
+#
+## ------------------------------------------------------------------------------------------------------------------
+#
+## If we have enough points to make a convex hull (at least 4 points)
+#if len(points)>3:
+#    
+#    # Step 2: Compute the convex hull
+#    hull = ConvexHull(points)
+#    
+#    # Step 3: Create a Delaunay triangulation for point inclusion
+#    tri = Delaunay(points[hull.vertices])
+#    
+#    # Step 4: Define the voxel grid
+#    # Define grid spacing (distance between points)
+#    grid_spacing = 0.05
+#    # Define bounding box
+#    min_bounds = points.min(axis=0)
+#    max_bounds = points.max(axis=0)
+#    # Create a 3D grid of points
+#    x = np.arange(min_bounds[0], max_bounds[0], grid_spacing)
+#    y = np.arange(min_bounds[1], max_bounds[1], grid_spacing)
+#    z = np.arange(min_bounds[2], max_bounds[2], grid_spacing)
+#    grid_x, grid_y, grid_z = np.meshgrid(x, y, z)
+#    grid_points = np.vstack([grid_x.ravel(), grid_y.ravel(), grid_z.ravel()]).T
+#    
+#    # Step 5: Check inclusion in the convex hull
+#    mask = tri.find_simplex(points) >= 0
+#    hull_samples = grid_points[mask]
+#    
+#    # Step 6: Plot the convex hull
+#    fig1 = plt.figure()
+#    ax1 = fig1.add_subplot(111, projection="3d")
+#    ax1.scatter(points[:, 0], points[:, 1], points[:, 2], c="blue", alpha=0.5, label="Original Points")
+#    for simplex in hull.simplices:
+#        ax1.plot(points[simplex, 0], points[simplex, 1], points[simplex, 2], "k-")
+#    ax1.set_title("Convex Hull")
+#    plt.show()
+#    
+#    # Step 7: Plot the sampled points inside the convex hull
+#    fig2 = plt.figure()
+#    ax2 = fig2.add_subplot(111, projection="3d")
+#    ax2.scatter(hull_samples[:, 0], hull_samples[:, 1], evenly_spaced_points[:, 2], c="red", alpha=0.8, label="Sampled Points")
+#    ax2.set_title("Sampled Points Inside Convex Hull")
+#    plt.show()
+#    
+#    # Output the result
+#    print(f"Number of evenly spaced points: {len(evenly_spaced_points)}")
+## ------------------------------------------------------------------------------------------------------------------
 
 

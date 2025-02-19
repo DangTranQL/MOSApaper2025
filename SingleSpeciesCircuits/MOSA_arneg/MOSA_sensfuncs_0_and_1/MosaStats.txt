@@ -25,71 +25,103 @@ Corresponding cold run tempertaure: 0.2750522933467762
 --------------------------------------------
 MOSA run parameters:
 --------------------------------------------
-Chosen number of MOSA runs: 3
+Chosen number of MOSA runs: 5
 Chosen number of random walks per run: 100
 
 MOSA RUN NUMBER 1:
 
 HOT RUN NO. 1:
-Hot run time: 19.4571430683136 seconds
+Hot run time: 28.71610713005066 seconds
 Hot run stopping temperature = cold run starting temperature: 0.28431924246913765
 Number of temperatures: 74
 Step scaling factor: 0.01
 
 COLD RUN NO. 1:
-Cold run time: 15.035843133926392 seconds
+Cold run time: 18.258710145950317 seconds
 Cold run stopping temperature: 8.391018678488318e-06
 
 PRUNE NO. 1:
-Prune time: 0.017526865005493164 seconds
+Prune time: 0.018935203552246094 seconds
 Archive length after prune: 349
 
 MOSA RUN NUMBER 2:
 
 HOT RUN NO. 2:
-Hot run time: 18.786345958709717 seconds
+Hot run time: 21.680246114730835 seconds
 Hot run stopping temperature = cold run starting temperature: 0.28431924246913765
 Number of temperatures: 74
 Step scaling factor: 0.01
 
 COLD RUN NO. 2:
-Cold run time: 13.847460746765137 seconds
+Cold run time: 18.751675128936768 seconds
 Cold run stopping temperature: 8.391018678488318e-06
 
 PRUNE NO. 2:
-Prune time: 0.01631903648376465 seconds
+Prune time: 0.014569997787475586 seconds
 Archive length after prune: 349
 
 MOSA RUN NUMBER 3:
 
 HOT RUN NO. 3:
-Hot run time: 18.31393313407898 seconds
+Hot run time: 25.100692987442017 seconds
 Hot run stopping temperature = cold run starting temperature: 0.28431924246913765
 Number of temperatures: 74
 Step scaling factor: 0.01
 
 COLD RUN NO. 3:
-Cold run time: 14.366703987121582 seconds
+Cold run time: 19.78025507926941 seconds
 Cold run stopping temperature: 8.391018678488318e-06
 
 PRUNE NO. 3:
-Prune time: 0.016145944595336914 seconds
+Prune time: 0.021581172943115234 seconds
+Archive length after prune: 349
+
+MOSA RUN NUMBER 4:
+
+HOT RUN NO. 4:
+Hot run time: 25.06475281715393 seconds
+Hot run stopping temperature = cold run starting temperature: 0.28431924246913765
+Number of temperatures: 74
+Step scaling factor: 0.01
+
+COLD RUN NO. 4:
+Cold run time: 18.046292781829834 seconds
+Cold run stopping temperature: 8.391018678488318e-06
+
+PRUNE NO. 4:
+Prune time: 0.01948690414428711 seconds
+Archive length after prune: 349
+
+MOSA RUN NUMBER 5:
+
+HOT RUN NO. 5:
+Hot run time: 25.52214026451111 seconds
+Hot run stopping temperature = cold run starting temperature: 0.28431924246913765
+Number of temperatures: 74
+Step scaling factor: 0.01
+
+COLD RUN NO. 5:
+Cold run time: 19.776926040649414 seconds
+Cold run stopping temperature: 8.391018678488318e-06
+
+PRUNE NO. 5:
+Prune time: 0.014482736587524414 seconds
 Archive length after prune: 349
 --------------------------------------------
 Combining all individual run data:
 --------------------------------------------
-Length of pareto_Salpha_combined: 1047
-Length of pareto_Sn_combined: 1047
-Length of pareto_alpha_combined: 1047
-Length of pareto_n_combined: 1047
+Length of pareto_Salpha_combined: 1745
+Length of pareto_Sn_combined: 1745
+Length of pareto_alpha_combined: 1745
+Length of pareto_n_combined: 1745
 -------------------------------------------------
-Bounds of new parameter space after 3 runs:
+Bounds of new parameter space after 5 runs:
 -------------------------------------------------
 alpha_min: 2.0003699320596136, alpha_max: 41.666070872465355
 n_min: 9.236464705531537, n_max: 9.999902904805843
 New parameter space area: 30.282311298896516
 Old parameter space area: 499.4001
-New parameter space is 6.06% of original parameter space volume.
+New parameter space is 6.06% of original parameter space area.
 Alpha line density: 100.02000400080016 points per unit alpha 
 n line density: 500.5005005005005 points per unit n 
 Area density: 50060.062062462544 points per unit area 
